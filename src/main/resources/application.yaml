@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: MyStreaming
+  
+  profiles:
+    active: dev
+
+  servlet:
+    multipart:
+      max-file-size: 100GB
+      max-request-size: 100GB
+      enabled: true
+
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+
+server:
+  port: 8080
+  compression:
+    enabled: true
+    min-response-size: 1024
+
+logging:
+  level:
+    root: INFO
+    pedroMartinsMJ.MyStreaming: DEBUG
+    org.springframework: INFO
