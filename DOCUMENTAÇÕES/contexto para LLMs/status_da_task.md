@@ -2,14 +2,17 @@
 
 ## O que foi feito (Done) ✅
 - **Estrutura Base:** Projeto Maven iniciado com Spring Boot (`MyStreamingApplication`).
-- **Configuração Inicial:** `pom.xml` configurado e estrutura de pacotes definida em `pedroMartinsMJ.MyStreaming`.
+- **Modelagem de Dados:** Entidades definidas para `User`, `Video`, `EncodingJob`, `Favorite`, etc.
+- **Camada de Persistência:** Repositórios JPA configurados e migrations Flyway inicializadas.
+- **Segurança JWT:** Implementação completa com filtro, utilitário e serviço de detalhes do usuário.
+- **Serviços Core:** Lógica para streaming (`StreamingService`), encoding (`EncodingService`) e manipulação de arquivos.
+- **API REST:** Controllers para autenticação, biblioteca, vídeos e status de jobs.
 
 ## O que falta fazer (To Do) ⏳
-- [ ] **Modelagem de Dados:** Criar entidades para Stream, User, Content, etc.
-- [ ] **Camada de Serviço:** Implementar lógica de streaming e persistência.
-- [ ] **API REST:** Controllers para CRUD básico e endpoints de stream.
-- [ ] **Persistência:** Configurar JPA/Hibernate com banco de dados (H2/Postgres).
-- [ ] **Segurança:** Autenticação JWT ou Spring Security básica.
+- [ ] **Testes de Integração:** Expandir a cobertura além dos testes unitários de repositório.
+- [ ] **Refinamento de DTOs:** Padronizar as respostas da API para esconder campos sensíveis e simplificar o consumo externo.
+- [ ] **Tratamento de Erros Global:** Centralizar exceções em um `GlobalExceptionHandler` via `@ControllerAdvice`.
+- [ ] **Documentação Swagger/OpenAPI:** Expor os endpoints automaticamente para frontends ou clientes externos.
 
 ---
-*Documentação gerada automaticamente em 6/23/2026.*
+*Documentação atualizada em 6/23/2026.*
