@@ -1,6 +1,7 @@
 package pedroMartinsMJ.MyStreaming.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -61,10 +62,11 @@ public class StreamingController {
     }
 
     /**
-     * Streaming direto do arquivo original com suporte a Range Requests (seek)
+     * Streaming direto do arquivo original com suporte a Range Requests (seek).
+     * Usa InputStreamResource para evitar OOM em arquivos grandes.
      */
     @GetMapping("/{videoId}/direct")
-    public ResponseEntity<byte[]> streamDirect(
+    public ResponseEntity<InputStreamResource> streamDirect(
             @PathVariable UUID videoId,
             @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader)
             throws IOException {

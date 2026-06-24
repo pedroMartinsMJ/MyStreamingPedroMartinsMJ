@@ -1,7 +1,7 @@
 package pedroMartinsMJ.MyStreaming.service;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,13 +24,30 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class EncodingService {
 
     private final EncodingJobRepository encodingJobRepository;
     private final EncodedVideoRepository encodedVideoRepository;
     private final VideoRepository videoRepository;
     private final FileSystemService fileSystemService;
+    private final String ffmpegPath;
+
+    /**
+     * Injeta o path do FFmpeg via configuração.
+     * Default: build-in FFmpeg bundle no projeto (Windows).
+     */
+    public EncodingService(
+            EncodingJobRepository encodingJobRepository,
+            EncodedVideoRepository encodedVideoRepository,
+            VideoRepository videoRepository,
+            FileSystemService fileSystemService,
+            @Value("${ffmpeg.path}") String ffmpegPath) {
+        this.encodingJobRepository = encodingJobRepository;
+        this.encodedVideoRepository = encodedVideoRepository;
+        this.videoRepository = videoRepository;
+        this.fileSystemService = fileSystemService;
+        this.ffmpegPath = ffmpegPath;
+    }
 
     /**
      * Perfis de encoding pré-definidos: resolução e bitrate
@@ -77,9 +94,21 @@ public class EncodingService {
         return jobs;
     }
 
-    @Async
-    @Transactional
+    /**
+     * Método assíncrono que delega para o método transacional.
+     * Separação necessária: @Async e @Transactional no mesmo método causam
+     * comportamento imprevisível devido a proxy AOP do Spring.
+     */
+    @Async("encodingExecutor")
     public void processJobAsync(UUID jobId) {
+        executeJobInTransaction(jobId);
+    }
+
+    /**
+     * Execução transacional isolada do scheduling assíncrono.
+     */
+    @Transactional
+    private void executeJobInTransaction(UUID jobId) {
         EncodingJob job = encodingJobRepository.findById(jobId).orElse(null);
         if (job == null) return;
 
@@ -119,8 +148,14 @@ public class EncodingService {
         String outputPattern = Paths.get(hlsOutputPath, "segment%03d.ts").toString();
         String playlistPath  = Paths.get(hlsOutputPath, "playlist.m3u8").toString();
 
+        // Validar se FFmpeg existe antes de executar
+        File ffmpegFile = new File(ffmpegPath);
+        if (!ffmpegFile.exists()) {
+            throw new EncodingException("FFmpeg não encontrado em: " + ffmpegPath);
+        }
+
         List<String> cmd = List.of(
-                "ffmpeg", "-y",
+                ffmpegPath, "-y",
                 "-i", inputPath,
                 "-c:v", job.getTargetCodec() != null ? "lib" + job.getTargetCodec() : "libx264",
                 "-b:v", job.getTargetBitrate() + "k",

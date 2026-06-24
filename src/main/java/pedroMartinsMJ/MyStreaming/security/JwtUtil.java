@@ -17,12 +17,19 @@ import java.util.UUID;
 @Component
 public class JwtUtil {
 
+    private static final String DEFAULT_DEV_SECRET = "mystreaming_dev_secret_key_change_in_production_please";
+
     private final SecretKey secretKey;
     private final long expirationMs;
 
     public JwtUtil(
             @Value("${jwt.secret:mystreaming_dev_secret_key_change_in_production_please}") String secret,
             @Value("${jwt.expiration-hours:24}") long expirationHours) {
+        // Validar que o secret não é o default fraco em produção
+        if (DEFAULT_DEV_SECRET.equals(secret)) {
+            log.warn("JWT_SECRET usando valor default! Em produção, defina a variável JWT_SECRET " +
+                     "ou configure jwt.secret no application.yaml com um valor forte e aleatório.");
+        }
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationMs = expirationHours * 60 * 60 * 1000;
     }

@@ -17,13 +17,18 @@ import pedroMartinsMJ.MyStreaming.repository.EncodedVideoRepository;
 import pedroMartinsMJ.MyStreaming.repository.VideoRepository;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.UUID;
+
+import org.springframework.core.io.InputStreamResource;
 
 @Slf4j
 @Service
@@ -111,8 +116,9 @@ public class StreamingService {
 
     /**
      * Streaming direto do arquivo original com suporte a Range Requests.
+     * Usa InputStreamResource para streaming sem carregar o arquivo inteiro na memória.
      */
-    public ResponseEntity<byte[]> streamVideoDirectly(UUID videoId, String rangeHeader) throws IOException {
+    public ResponseEntity<InputStreamResource> streamVideoDirectly(UUID videoId, String rangeHeader) throws IOException {
         Video video = videoRepository.findById(videoId)
                 .orElseThrow(() -> new VideoNotFoundException(videoId.toString()));
 
@@ -124,15 +130,17 @@ public class StreamingService {
         long fileSize = file.length();
         String mimeType = guessMimeType(video.getOriginalFormat());
 
+        // Sem Range Request: enviar arquivo inteiro via streaming (InputStreamResource streama naturalmente)
         if (rangeHeader == null) {
+            InputStream inputStream = new FileInputStream(file);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_TYPE, mimeType)
                     .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                     .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileSize))
-                    .body(Files.readAllBytes(file.toPath()));
+                    .body(new InputStreamResource(inputStream));
         }
 
-        // Processar Range Request
+        // Processar Range Request (seek/scrub)
         List<HttpRange> ranges = HttpRange.parseRanges(rangeHeader);
         if (ranges.isEmpty()) {
             return ResponseEntity.badRequest().build();
@@ -143,18 +151,49 @@ public class StreamingService {
         long end   = range.getRangeEnd(fileSize);
         long length = end - start + 1;
 
-        byte[] data = new byte[(int) length];
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            raf.seek(start);
-            raf.readFully(data);
-        }
+        // Para Range Requests: usar RandomAccessFile com channel para seek eficiente
+        InputStream inputStream = new InputStream() {
+            private final RandomAccessFile raf = new RandomAccessFile(file, "r");
+            private long remaining = length;
+
+            {
+                try {
+                    raf.seek(start);
+                } catch (IOException e) {
+                    // não deve acontecer em arquivo existente
+                }
+            }
+
+            @Override
+            public int read() throws IOException {
+                if (remaining <= 0) return -1;
+                remaining--;
+                return raf.read();
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                if (remaining <= 0) return -1;
+                int toRead = (int) Math.min(len, remaining);
+                int bytesRead = raf.read(b, off, toRead);
+                if (bytesRead > 0) {
+                    remaining -= bytesRead;
+                }
+                return bytesRead;
+            }
+
+            @Override
+            public void close() throws IOException {
+                raf.close();
+            }
+        };
 
         return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                 .header(HttpHeaders.CONTENT_TYPE, mimeType)
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .header(HttpHeaders.CONTENT_RANGE, "bytes " + start + "-" + end + "/" + fileSize)
                 .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(length))
-                .body(data);
+                .body(new InputStreamResource(inputStream));
     }
 
     private String guessMimeType(String format) {
